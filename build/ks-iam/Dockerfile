@@ -13,6 +13,9 @@ WORKDIR /go/src/kubesphere.io/kubesphere
 RUN CGO_ENABLED=0 GO111MODULE=on GOOS=linux GOARCH=amd64 GOFLAGS=-mod=vendor go build -i -ldflags '-w -s' -o ks-iam cmd/ks-iam/apiserver.go
 
 FROM alpine:3.9
+# 替换 Alpine 默认的源地址
+# 防止出现 ERROR: http://dl-cdn.alpinelinux.org/alpine/v3.9/main: BAD signature
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
 RUN apk add --update ca-certificates && update-ca-certificates
 COPY --from=ks-iam-builder /go/src/kubesphere.io/kubesphere/ks-iam /usr/local/bin/
 CMD ["sh"]
