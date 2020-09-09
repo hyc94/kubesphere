@@ -140,6 +140,7 @@ func addWebService(c *restful.Container) error {
 		}{}).
 		Doc("Get the devops projects count for the member").
 		Metadata(restfulspec.KeyOpenAPITags, []string{constants.TenantResourcesTag}))
+	// 新增DevOps工程
 	ws.Route(ws.POST("/workspaces/{workspace}/devops").
 		To(tenant.CreateDevopsProject).
 		Param(ws.PathParameter("workspace", "workspace name")).

@@ -201,6 +201,7 @@ func (cs *ClientSet) Redis() (*goredis.Client, error) {
 	}
 }
 
+// 获取DevOps Client
 func (cs *ClientSet) Devops() (*devops.DevopsClient, error) {
 	var err error
 
@@ -208,9 +209,11 @@ func (cs *ClientSet) Devops() (*devops.DevopsClient, error) {
 		return nil, ClientSetNotEnabledError{}
 	}
 
+	// 判断ClientSet中的devopsClient是否存在。如果存在，直接返回；不存在，调用NewDevopsClient
 	if cs.devopsClient != nil {
 		return cs.devopsClient, nil
 	} else {
+		// 加锁
 		mutex.Lock()
 		defer mutex.Unlock()
 

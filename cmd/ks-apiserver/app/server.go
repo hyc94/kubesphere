@@ -49,6 +49,7 @@ func NewAPIServerCommand() *cobra.Command {
 The API Server services REST operations and provides the frontend to the
 cluster's shared state through which all other components interact.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			klog.V(0).Info("debug ks-apiserver")
 			err := apiserverconfig.Load()
 			if err != nil {
 				return err

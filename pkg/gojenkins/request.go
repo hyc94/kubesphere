@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"k8s.io/klog"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -89,6 +90,8 @@ func (r *Requester) PostJSON(endpoint string, payload io.Reader, responseStruct 
 
 func (r *Requester) Post(endpoint string, payload io.Reader, responseStruct interface{}, querystring map[string]string) (*http.Response, error) {
 	ar := NewAPIRequest("POST", endpoint, payload)
+	// 由于Jenkins有CSRF安全机制，所有的Post请求调用前，需要调用SetCrumb()方法获取token：
+	// 调用接口http://ks-jenkins.kubesphere-devops-system.svc/crumbIssuer/api/json/api/json
 	if err := r.SetCrumb(ar); err != nil {
 		return nil, err
 	}
@@ -272,6 +275,7 @@ func (r *Requester) Do(ar *APIRequest, responseStruct interface{}, options ...in
 	fileUpload := false
 	var files []string
 	URL, err := url.Parse(r.Base + ar.Endpoint + ar.Suffix)
+	klog.V(0).Info("url: ", URL.String())
 
 	if err != nil {
 		return nil, err

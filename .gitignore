@@ -30,3 +30,5 @@ api.json
 *.coverprofile
 
 kustomize/network/etcd
+
+cmd/*/__debug_bin

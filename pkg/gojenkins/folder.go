@@ -57,6 +57,7 @@ func (f *Folder) Create(name, description string) (*Folder, error) {
 			"description": description,
 		}),
 	}
+	// 调用接口http://ks-jenkins.kubesphere-devops-system.svc/createItem
 	r, err := f.Jenkins.Requester.Post(f.parentBase()+"/createItem", nil, f.Raw, data)
 	if err != nil {
 		return nil, err

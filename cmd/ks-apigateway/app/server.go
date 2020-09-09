@@ -5,6 +5,7 @@ import (
 	"github.com/mholt/caddy/caddy/caddymain"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"github.com/spf13/cobra"
+	"k8s.io/klog"
 	apiserverconfig "kubesphere.io/kubesphere/pkg/server/config"
 	"kubesphere.io/kubesphere/pkg/simple/client"
 	"kubesphere.io/kubesphere/pkg/utils/signals"
@@ -22,6 +23,7 @@ Kubernetes API Server for KubeSphere authorization purpose.
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
+			klog.V(0).Info("debug ks-apigateway")
 			err := apiserverconfig.Load()
 			if err != nil {
 				return err

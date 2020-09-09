@@ -145,13 +145,16 @@ func GetDevOpsProjectsCount(username string) (uint32, error) {
 	return count, nil
 }
 
+// 删除DevOps工程
 func DeleteDevOpsProject(projectId, username string) error {
+	// 检查当前用户是否有权限（owner），查询数据库
 	err := devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner})
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return restful.NewError(http.StatusForbidden, err.Error())
 	}
 
+	// 获取DevOps Client
 	dp, err := cs.ClientSets().Devops()
 	if err != nil {
 		klog.Error(err)
@@ -159,12 +162,15 @@ func DeleteDevOpsProject(projectId, username string) error {
 	}
 	jenkins := dp.Jenkins()
 
+	// 获取MySQL Client
 	devopsdb, err := cs.ClientSets().MySQL()
 	if err != nil {
 		klog.Error(err)
 		return restful.NewError(http.StatusServiceUnavailable, err.Error())
 	}
 
+	// 在jenkins中删除DevOps工程对应的job，
+	// 调用接口：http://ks-jenkins.kubesphere-devops-system.svc/job/project-xZklOKkZJP15/doDelete
 	_, err = jenkins.DeleteJob(projectId)
 
 	if err != nil && utils.GetJenkinsStatusCode(err) != http.StatusNotFound {
@@ -177,17 +183,21 @@ func DeleteDevOpsProject(projectId, username string) error {
 		roleNames = append(roleNames, devops.GetProjectRoleName(projectId, role))
 		roleNames = append(roleNames, devops.GetPipelineRoleName(projectId, role))
 	}
+	// 在jenkins中删除DevOps工程对应的8个Project Role
+	// 调用接口：http://ks-jenkins.kubesphere-devops-system.svc/role-strategy/strategy/removeRoles
 	err = jenkins.DeleteProjectRoles(roleNames...)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
+	// 删除数据库中对应的Project Member（devops数据库的project_membership表）
 	_, err = devopsdb.DeleteFrom(devops.DevOpsProjectMembershipTableName).
 		Where(db.Eq(devops.DevOpsProjectMembershipProjectIdColumn, projectId)).Exec()
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
+	// 更新DevOps工程的状态为已删除（devops数据库的projet表）
 	_, err = devopsdb.Update(devops.DevOpsProjectTableName).
 		Set(devops.StatusColumn, devops.StatusDeleted).
 		Where(db.Eq(devops.DevOpsProjectIdColumn, projectId)).Exec()
@@ -207,8 +217,9 @@ func DeleteDevOpsProject(projectId, username string) error {
 	return nil
 }
 
+// 新增DevOps工程
 func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOpsProject) (*v1alpha2.DevOpsProject, error) {
-
+	// 获取DevOps Client
 	dp, err := cs.ClientSets().Devops()
 	if err != nil {
 		klog.Error(err)
@@ -217,6 +228,7 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 	}
 	jenkinsClient := dp.Jenkins()
 
+	// 获取MySQL Client
 	devopsdb, err := cs.ClientSets().MySQL()
 	if err != nil {
 		klog.Error(err)
@@ -224,14 +236,17 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 	}
 
 	project := devops.NewDevOpsProject(req.Name, req.Description, username, req.Extra, workspace)
+	// 在jenkins中为每个Project创建对应的Folder
 	_, err = jenkinsClient.CreateFolder(project.ProjectId, project.Description)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 
+	// 使用协程+WaitGroup方式
 	var addRoleCh = make(chan *DevOpsProjectRoleResponse, 8)
 	var addRoleWg sync.WaitGroup
+	// 在jenkins中为每个DevOps工程创建4个默认的Project Role：ProjectOwner、ProjectMaintainer、ProjectDeveloper、ProjectReporter
 	for role, permission := range devops.JenkinsProjectPermissionMap {
 		addRoleWg.Add(1)
 		go func(role string, permission gojenkins.ProjectPermissionIds) {
@@ -241,6 +256,7 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 			addRoleWg.Done()
 		}(role, permission)
 	}
+	// 在jenkins中为每个DevOps工程创建4个默认的Pipeline Role：ProjectOwner、ProjectMaintainer、ProjectDeveloper、ProjectReporter（与上面的Project Role权限不同）
 	for role, permission := range devops.JenkinsPipelinePermissionMap {
 		addRoleWg.Add(1)
 		go func(role string, permission gojenkins.ProjectPermissionIds) {
@@ -259,12 +275,14 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 		}
 	}
 
+	// 获取jenkins的Global Roles中是否存在kubesphere-user
 	globalRole, err := jenkinsClient.GetGlobalRole(devops.JenkinsAllUserRoleName)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 	if globalRole == nil {
+		// 如果不存在，在Global Roles新增kubesphere-user
 		_, err := jenkinsClient.AddGlobalRole(devops.JenkinsAllUserRoleName, gojenkins.GlobalPermissionIds{
 			GlobalRead: true,
 		}, true)
@@ -273,33 +291,39 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 			return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 		}
 	}
+	// 在jenkins中将Global Role --> kubesphere-user角色授权给当前用户
 	err = globalRole.AssignRole(username)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 
+	// 获取新创建的DevOps工程：Project Role --> ProjectOwner角色
 	projectRole, err := jenkinsClient.GetProjectRole(devops.GetProjectRoleName(project.ProjectId, devops.ProjectOwner))
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
+	// 在jenkins中将新创建的DevOps工程：Project Role --> ProjectOwner角色授权给当前用户
 	err = projectRole.AssignRole(username)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 
+	// 获取新创建的DevOps工程：Pipeline Role --> ProjectOwner角色
 	pipelineRole, err := jenkinsClient.GetProjectRole(devops.GetPipelineRoleName(project.ProjectId, devops.ProjectOwner))
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
+	// 在jenkins中将新创建的DevOps工程：Pipeline Role --> ProjectOwner角色授权给当前用户
 	err = pipelineRole.AssignRole(username)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
+	// 将数据插入devops数据库中的project表
 	_, err = devopsdb.InsertInto(devops.DevOpsProjectTableName).
 		Columns(devops.DevOpsProjectColumns...).Record(project).Exec()
 	if err != nil {
@@ -308,6 +332,7 @@ func CreateDevopsProject(username string, workspace string, req *v1alpha2.DevOps
 	}
 
 	projectMembership := devops.NewDevOpsProjectMemberShip(username, project.ProjectId, devops.ProjectOwner, username)
+	// 插入DevOps member（工程成员）到devops数据库中的project_membership表
 	_, err = devopsdb.InsertInto(devops.DevOpsProjectMembershipTableName).
 		Columns(devops.DevOpsProjectMembershipColumns...).Record(projectMembership).Exec()
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/klog"
 	"log"
 	"net/http"
 	"os"
@@ -177,11 +178,13 @@ func (j *Jenkins) DeleteNode(name string) (bool, error) {
 	return node.Delete()
 }
 
+// 在jenkins中为每个Project创建对应的Folder
 // Create a new folder
 // This folder can be nested in other parent folders
 // Example: jenkins.CreateFolder("newFolder", "grandparentFolder", "parentFolder")
 func (j *Jenkins) CreateFolder(name, description string, parents ...string) (*Folder, error) {
 	folderObj := &Folder{Jenkins: j, Raw: new(FolderResponse), Base: "/job/" + strings.Join(append(parents, name), "/job/")}
+	klog.V(0).Info("CreateFolder方法，folder信息：", folderObj.Base)
 	folder, err := folderObj.Create(name, description)
 	if err != nil {
 		return nil, err
@@ -983,6 +986,7 @@ func (j *Jenkins) AddGlobalRole(roleName string, ids GlobalPermissionIds, overwr
 	return responseRole, nil
 }
 
+// 在jenkins中删除DevOps工程对应的8个Project Role
 func (j *Jenkins) DeleteProjectRoles(roleName ...string) error {
 	responseString := ""
 

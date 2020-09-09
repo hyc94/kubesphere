@@ -28,10 +28,13 @@ type DevopsClient struct {
 	jenkinsClient *gojenkins.Jenkins
 }
 
+// 创建DevopsClient
 func NewDevopsClient(options *DevopsOptions) (*DevopsClient, error) {
 	var d DevopsClient
 
+	// 创建jenkins实例
 	jenkins := gojenkins.CreateJenkins(nil, options.Host, options.MaxConnections, options.Username, options.Password)
+	// 检查jenkins是否可以连接
 	jenkins, err := jenkins.Init()
 	if err != nil {
 		klog.Errorf("failed to connecto to jenkins role, %+v", err)
@@ -40,6 +43,7 @@ func NewDevopsClient(options *DevopsOptions) (*DevopsClient, error) {
 
 	d.jenkinsClient = jenkins
 
+	// 初始化jenkins
 	err = d.initializeJenkins()
 	if err != nil {
 		klog.Error(err)
@@ -76,7 +80,9 @@ func (c *DevopsClient) Jenkins() *gojenkins.Jenkins {
 
 var mutex = sync.Mutex{}
 
+// 初始化jenkins，主要是在Global Role和Project Role中新增kubesphere通用角色
 func (c *DevopsClient) initializeJenkins() error {
+	// 加锁
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -84,6 +90,8 @@ func (c *DevopsClient) initializeJenkins() error {
 		return fmt.Errorf("jenkins intialization failed")
 	}
 
+	// 获取jenkins的Global Roles中是否存在kubesphere-user
+	// 调用接口http://ks-jenkins.kubesphere-devops-system.svc/role-strategy/strategy/getRole/
 	globalRole, err := c.jenkinsClient.GetGlobalRole(JenkinsAllUserRoleName)
 	if err != nil {
 		klog.Error(err)
@@ -92,6 +100,8 @@ func (c *DevopsClient) initializeJenkins() error {
 
 	// Jenkins uninitialized, create global role
 	if globalRole == nil {
+		// 在Global Roles新增kubesphere-user
+		// 调用接口http://ks-jenkins.kubesphere-devops-system.svc/role-strategy/strategy/addRole
 		_, err := c.jenkinsClient.AddGlobalRole(JenkinsAllUserRoleName, gojenkins.GlobalPermissionIds{GlobalRead: true}, true)
 		if err != nil {
 			klog.Error(err)
@@ -99,6 +109,8 @@ func (c *DevopsClient) initializeJenkins() error {
 		}
 	}
 
+	// 在Project Roles新增kubesphere-user：AddProjectRole()
+	// 调用接口http://ks-jenkins.kubesphere-devops-system.svc/role-strategy/strategy/addRole
 	_, err = c.jenkinsClient.AddProjectRole(JenkinsAllUserRoleName, "\\n\\s*\\r", gojenkins.ProjectPermissionIds{SCMTag: true}, true)
 	if err != nil {
 		klog.Error(err)

@@ -276,6 +276,7 @@ func DeleteDevopsProject(req *restful.Request, resp *restful.Response) {
 	resp.WriteAsJson(errors.None)
 }
 
+// 新增DevOps工程
 func CreateDevopsProject(req *restful.Request, resp *restful.Response) {
 
 	workspaceName := req.PathParameter("workspace")
