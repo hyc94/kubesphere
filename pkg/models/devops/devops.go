@@ -65,6 +65,7 @@ func SearchPipelines(req *http.Request) ([]byte, error) {
 		return nil, restful.NewError(http.StatusServiceUnavailable, err.Error())
 	}
 
+	// 通过jenkins API查询流水线数据
 	baseUrl := devops.Jenkins().Server + SearchPipelineUrl + req.URL.RawQuery
 
 	res, err := sendJenkinsRequest(baseUrl, req)
@@ -72,11 +73,13 @@ func SearchPipelines(req *http.Request) ([]byte, error) {
 		klog.Error(err)
 		return nil, err
 	}
+	// 通过jenkins API查询流水线总数
 	count, err := searchPipelineCount(req)
 	if err != nil {
 		klog.Error(err)
 		return nil, err
 	}
+	// 组织分页数据
 	responseStruct := models.PageableResponse{TotalCount: count}
 	err = json.Unmarshal(res, &responseStruct.Items)
 	if err != nil {

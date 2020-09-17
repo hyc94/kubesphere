@@ -37,19 +37,23 @@ func CreateProjectCredential(projectId, username string, credentialRequest *Jenk
 
 	jenkinsClient := devops.Jenkins()
 
+	// 通过jenkins API查询凭证是否已经存在
 	err = checkJenkinsCredentialExists(projectId, credentialRequest.Domain, credentialRequest.Id)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return "", err
 	}
 
+	// 判断凭证类型
 	switch credentialRequest.Type {
+	// 如果是账户凭证（账户、密码）
 	case CredentialTypeUsernamePassword:
 		if credentialRequest.UsernamePasswordCredential == nil {
 			err := fmt.Errorf("usename_password should not be nil")
 			klog.Error(err)
 			return "", restful.NewError(http.StatusBadRequest, err.Error())
 		}
+		// 通过jenkins API在DevOps工程对应的Folder下创建账户凭证
 		credentialId, err := jenkinsClient.CreateUsernamePasswordCredentialInFolder(credentialRequest.Domain,
 			credentialRequest.Id,
 			credentialRequest.UsernamePasswordCredential.Username,
@@ -60,6 +64,7 @@ func CreateProjectCredential(projectId, username string, credentialRequest *Jenk
 			klog.Errorf("%+v", err)
 			return "", restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 		}
+		// 插入数据库（devops数据库project_credential表）
 		err = insertCredentialToDb(projectId, *credentialId, credentialRequest.Domain, username)
 		if err != nil {
 			klog.Errorf("%+v", err)
@@ -150,6 +155,7 @@ func UpdateProjectCredential(projectId, credentialId string, credentialRequest *
 	}
 	jenkinsClient := devops.Jenkins()
 
+	// 通过jenkins API查询凭证是否已经存在
 	jenkinsCredential, err := jenkinsClient.GetCredentialInFolder(credentialRequest.Domain,
 		credentialId,
 		projectId)
@@ -158,13 +164,16 @@ func UpdateProjectCredential(projectId, credentialId string, credentialRequest *
 		return "", restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 	credentialType := CredentialTypeMap[jenkinsCredential.TypeName]
+	// 判断凭证类型
 	switch credentialType {
+	// 如果是账户凭证
 	case CredentialTypeUsernamePassword:
 		if credentialRequest.UsernamePasswordCredential == nil {
 			err := fmt.Errorf("usename_password should not be nil")
 			klog.Error(err)
 			return "", restful.NewError(http.StatusBadRequest, err.Error())
 		}
+		// 通过jenkins API更新对应账户凭证
 		credentialId, err := jenkinsClient.UpdateUsernamePasswordCredentialInFolder(credentialRequest.Domain,
 			credentialId,
 			credentialRequest.UsernamePasswordCredential.Username,
@@ -249,6 +258,7 @@ func DeleteProjectCredential(projectId, credentialId string, credentialRequest *
 		return "", restful.NewError(http.StatusServiceUnavailable, err.Error())
 	}
 
+	// 通过jenkins API查询凭证是否存在
 	_, err = jenkinsClient.GetCredentialInFolder(credentialRequest.Domain,
 		credentialId,
 		projectId)
@@ -257,6 +267,7 @@ func DeleteProjectCredential(projectId, credentialId string, credentialRequest *
 		return "", restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 
+	// 通过jenkins API删除凭证
 	id, err := jenkinsClient.DeleteCredentialInFolder(credentialRequest.Domain, credentialId, projectId)
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -271,6 +282,7 @@ func DeleteProjectCredential(projectId, credentialId string, credentialRequest *
 		deleteConditions = append(deleteConditions, db.Eq(ProjectCredentialDomainColumn, "_"))
 	}
 
+	// 删除数据库中的凭证（devops数据库project_credential表）
 	_, err = dbClient.DeleteFrom(ProjectCredentialTableName).
 		Where(db.And(deleteConditions...)).Exec()
 	if err != nil && err != db.ErrNotFound {
@@ -292,6 +304,7 @@ func GetProjectCredential(projectId, credentialId, domain, getContent string) (*
 	if err != nil {
 		return nil, restful.NewError(http.StatusServiceUnavailable, err.Error())
 	}
+	// 通过jenkins API获取凭证详情
 	jenkinsResponse, err := jenkinsClient.GetCredentialInFolder(domain,
 		credentialId,
 		projectId)
@@ -300,6 +313,7 @@ func GetProjectCredential(projectId, credentialId, domain, getContent string) (*
 		return nil, restful.NewError(utils.GetJenkinsStatusCode(err), err.Error())
 	}
 
+	// 查询数据库中的凭证详情
 	projectCredential := &ProjectCredential{}
 	err = dbClient.Select(ProjectCredentialColumns...).
 		From(ProjectCredentialTableName).Where(
@@ -312,8 +326,11 @@ func GetProjectCredential(projectId, credentialId, domain, getContent string) (*
 		return nil, restful.NewError(http.StatusInternalServerError, err.Error())
 	}
 
+	// 根据jenkins返回数据和数据库查询数据，组织前台response格式
 	response := formatCredentialResponse(jenkinsResponse, projectCredential)
+	// 如果需要获取凭证内容（getContent=1）
 	if getContent != "" {
+		// 通过jenkins API获取凭证内容，返回HTML格式
 		stringBody, err := jenkinsClient.GetCredentialContentInFolder(jenkinsResponse.Domain, credentialId, projectId)
 		if err != nil {
 			klog.Errorf("%+v", err)
@@ -325,6 +342,7 @@ func GetProjectCredential(projectId, credentialId, domain, getContent string) (*
 			klog.Errorf("%+v", err)
 			return nil, restful.NewError(http.StatusInternalServerError, err.Error())
 		}
+		// 根据凭证类型提取对应数据
 		switch response.Type {
 		case CredentialTypeKubeConfig:
 			content := &KubeconfigCredential{}
@@ -370,6 +388,7 @@ func GetProjectCredentials(projectId, domain string) ([]*JenkinsCredential, erro
 	if err != nil {
 		return nil, restful.NewError(http.StatusServiceUnavailable, err.Error())
 	}
+	// 通过jenkins API查询当前DevOps工程对应folder下的凭证
 	jenkinsCredentialResponses, err := jenkinsClient.GetCredentialsInFolder(domain, projectId)
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -380,12 +399,14 @@ func GetProjectCredentials(projectId, domain string) ([]*JenkinsCredential, erro
 		selectCondition = db.And(selectCondition, db.Eq(ProjectCredentialDomainColumn, domain))
 	}
 	projectCredentials := make([]*ProjectCredential, 0)
+	// 查询数据库中的凭证，devops数据库project_credential表
 	_, err = dbClient.Select(ProjectCredentialColumns...).
 		From(ProjectCredentialTableName).Where(selectCondition).Load(&projectCredentials)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		return nil, restful.NewError(http.StatusInternalServerError, err.Error())
 	}
+	// 根据jenkins返回数据和数据库查询数据，组织前台response格式
 	response := formatCredentialsResponse(jenkinsCredentialResponses, projectCredentials)
 	return response, nil
 }

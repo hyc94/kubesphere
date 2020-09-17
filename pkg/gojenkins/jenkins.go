@@ -823,6 +823,8 @@ func (j *Jenkins) GetCredentialsInFolder(domain string, folders ...string) ([]*C
 		prePath = prePath + fmt.Sprintf("/job/%s", folder)
 	}
 
+	// 如果域为空，
+	// 查询http://ks-jenkins.kubesphere-devops-system.svc/job/project-xQJJggOZmBY4/credentials/store/folder/api/json
 	if domain == "" {
 		var responseStruct = &struct {
 			Domains map[string]struct {

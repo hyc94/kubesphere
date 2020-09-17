@@ -178,6 +178,7 @@ func addWebService(c *restful.Container) error {
 		Returns(http.StatusOK, RespOK, []devops.SonarStatus{}).
 		Writes([]devops.SonarStatus{}))
 
+	// 创建凭证
 	webservice.Route(webservice.POST("/devops/{devops}/credentials").
 		To(devopsapi.CreateDevOpsProjectCredentialHandler).
 		Doc("Create a credential in the specified DevOps project").
@@ -185,6 +186,7 @@ func addWebService(c *restful.Container) error {
 		Param(webservice.PathParameter("devops", "DevOps project's ID, e.g. project-RRRRAzLBlLEm")).
 		Reads(devops.JenkinsCredential{}))
 
+	// 更新凭证
 	webservice.Route(webservice.PUT("/devops/{devops}/credentials/{credential}").
 		To(devopsapi.UpdateDevOpsProjectCredentialHandler).
 		Doc("Update the specified credential of the DevOps project").
@@ -193,6 +195,7 @@ func addWebService(c *restful.Container) error {
 		Param(webservice.PathParameter("credential", "credential's ID, e.g. dockerhub-id")).
 		Reads(devops.JenkinsCredential{}))
 
+	// 删除凭证
 	webservice.Route(webservice.DELETE("/devops/{devops}/credentials/{credential}").
 		To(devopsapi.DeleteDevOpsProjectCredentialHandler).
 		Doc("Delete the specified credential of the DevOps project").
@@ -200,6 +203,7 @@ func addWebService(c *restful.Container) error {
 		Param(webservice.PathParameter("devops", "DevOps project's ID, e.g. project-RRRRAzLBlLEm")).
 		Param(webservice.PathParameter("credential", "credential's ID, e.g. dockerhub-id")))
 
+	// 查询凭证详情
 	webservice.Route(webservice.GET("/devops/{devops}/credentials/{credential}").
 		To(devopsapi.GetDevOpsProjectCredentialHandler).
 		Doc("Get the specified credential of the DevOps project").
@@ -214,6 +218,7 @@ The last one is encrypted info, such as the password of the username-password ty
 `)).
 		Returns(http.StatusOK, RespOK, devops.JenkinsCredential{}))
 
+	// 分页查询凭证信息
 	webservice.Route(webservice.GET("/devops/{devops}/credentials").
 		To(devopsapi.GetDevOpsProjectCredentialsHandler).
 		Doc("Get all credentials of the specified DevOps project").
@@ -231,6 +236,7 @@ The last one is encrypted info, such as the password of the username-password ty
 		Returns(http.StatusOK, RespOK, devops.Pipeline{}).
 		Writes(devops.Pipeline{}))
 
+	// 分页查询流水线
 	// match Jenkisn api: "jenkins_api/blue/rest/search"
 	webservice.Route(webservice.GET("/search").
 		To(devopsapi.SearchPipelines).
@@ -626,6 +632,7 @@ The last one is encrypted info, such as the password of the username-password ty
 		Returns(http.StatusOK, RespOK, devops.QueuedBlueRun{}).
 		Writes(devops.QueuedBlueRun{}))
 
+	// 获取jenkins CSRF token
 	// match /crumbIssuer/api/json/
 	webservice.Route(webservice.GET("/crumbissuer").
 		To(devopsapi.GetCrumb).

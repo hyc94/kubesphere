@@ -33,6 +33,7 @@ func CreateDevOpsProjectCredentialHandler(request *restful.Request, resp *restfu
 		errors.ParseSvcErr(restful.NewError(http.StatusBadRequest, err.Error()), resp)
 		return
 	}
+	// 检查当前用户是否有权限（owner、maintainer），查询数据库
 	err = devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner, devops.ProjectMaintainer})
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -65,6 +66,7 @@ func UpdateDevOpsProjectCredentialHandler(request *restful.Request, resp *restfu
 		errors.ParseSvcErr(restful.NewError(http.StatusBadRequest, err.Error()), resp)
 		return
 	}
+	// 检查当前用户是否有权限（owner、maintainer），查询数据库
 	err = devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner, devops.ProjectMaintainer})
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -97,6 +99,7 @@ func DeleteDevOpsProjectCredentialHandler(request *restful.Request, resp *restfu
 		errors.ParseSvcErr(restful.NewError(http.StatusBadRequest, err.Error()), resp)
 		return
 	}
+	// 检查当前用户是否有权限（owner、maintainer），查询数据库
 	err = devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner, devops.ProjectMaintainer})
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -125,6 +128,7 @@ func GetDevOpsProjectCredentialHandler(request *restful.Request, resp *restful.R
 	getContent := request.QueryParameter("content")
 	domain := request.QueryParameter("domain")
 
+	// 检查当前用户是否有权限（owner、maintainer），查询数据库
 	err := devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner, devops.ProjectMaintainer})
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -148,6 +152,7 @@ func GetDevOpsProjectCredentialsHandler(request *restful.Request, resp *restful.
 	username := request.HeaderParameter(constants.UserNameHeader)
 	domain := request.QueryParameter("domain")
 
+	// 检查当前用户是否有权限（owner、maintainer），查询数据库
 	err := devops.CheckProjectUserInRole(username, projectId, []string{devops.ProjectOwner, devops.ProjectMaintainer})
 	if err != nil {
 		klog.Errorf("%+v", err)
